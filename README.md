@@ -47,6 +47,7 @@ Install dependencies:
 
 ```powershell
 python -m pip install -r requirements.txt
+python -m pip install -e .
 ```
 
 The initial dependency stack includes:
@@ -62,8 +63,40 @@ Copy `.env.example` to `.env` and adjust the MongoDB database name if needed:
 
 ```text
 MONGODB_URI=mongodb://localhost:27017
-MONGODB_DATABASE=technical_research
+MONGODB_DATABASE=vn_market_data
+MONGODB_COLLECTION=market_bars_raw
 ```
+
+## Loading Market Data
+
+The MongoDB loader expects daily bar documents in:
+
+- Database: `vn_market_data`
+- Collection: `market_bars_raw`
+- Relevant fields: `time`, `meta.symbol`, `open`, `high`, `low`, `close`, `volume`
+- Loader time format: `YYYY-MM-DD`
+
+Preview available symbols:
+
+```powershell
+python scripts/preview_market_data.py --symbols
+```
+
+Preview bars for one symbol:
+
+```powershell
+python scripts/preview_market_data.py --symbol VNM --start 2024-01-01 --end 2025-01-01
+```
+
+Use the loader in Python:
+
+```python
+from technicalresearch.data_loader import load_market_bars
+
+df = load_market_bars(symbols=["VNM", "FPT"], start="2024-01-01", end="2025-01-01")
+```
+
+The query uses `meta.symbol` and `time` filters so it can benefit from the existing indexes. Loader inputs and outputs use `YYYY-MM-DD` date strings for `time`.
 
 ## Methodological Notes
 
