@@ -22,16 +22,47 @@ Initial research should focus on liquid Vietnamese stocks listed on HOSE, HNX, a
 
 ```text
 TechnicalResearch/
-├── data/
-│   ├── raw/          # Original market data, not committed
-│   ├── interim/      # Cleaned intermediate datasets, not committed
-│   └── processed/    # Analysis-ready datasets, not committed
-├── notebooks/        # Exploratory research notebooks
-├── src/              # Reusable Python modules
-├── tests/            # Unit and regression tests
-├── outputs/          # Generated model outputs, not committed
-├── reports/          # Generated research reports, not committed
-└── README.md
+|-- data/
+|   |-- raw/          # Original market data, not committed
+|   |-- interim/      # Cleaned intermediate datasets, not committed
+|   `-- processed/    # Analysis-ready datasets, not committed
+|-- notebooks/        # Exploratory research notebooks
+|-- src/              # Reusable Python modules
+|-- tests/            # Unit and regression tests
+|-- outputs/          # Generated model outputs, not committed
+|-- reports/          # Generated research reports, not committed
+`-- README.md
+```
+
+## Environment Setup
+
+Create and activate a virtual environment:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+Install dependencies:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+The initial dependency stack includes:
+
+- `pymongo` for connecting to the existing local MongoDB stock database.
+- `pandas` and `polars` for tabular data preparation and analysis.
+- `scipy` and `statsmodels` for statistical testing and regression diagnostics.
+- `scikit-learn` for modelling and validation workflows.
+- `matplotlib`, `seaborn`, and `plotly` for visualization.
+- `python-dotenv` for local environment configuration.
+
+Copy `.env.example` to `.env` and adjust the MongoDB database name if needed:
+
+```text
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DATABASE=technical_research
 ```
 
 ## Methodological Notes
