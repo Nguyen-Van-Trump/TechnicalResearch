@@ -46,7 +46,6 @@ py -3 -m venv .venv
 Install dependencies:
 
 ```powershell
-python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
@@ -54,6 +53,7 @@ The initial dependency stack includes:
 
 - `pymongo` for connecting to the existing local MongoDB stock database.
 - `pandas` and `polars` for tabular data preparation and analysis.
+- `pandas-ta-classic` for reusable technical indicator calculations.
 - `scipy` and `statsmodels` for statistical testing and regression diagnostics.
 - `scikit-learn` for modelling and validation workflows.
 - `matplotlib`, `seaborn`, and `plotly` for visualization.
@@ -91,7 +91,7 @@ python scripts/preview_market_data.py --symbol VNM --start 2024-01-01 --end 2025
 Use the loader in Python:
 
 ```python
-from technicalresearch.data_loader import load_market_bars
+from loaders.data_loader import load_market_bars
 
 df = load_market_bars(symbols=["VNM", "FPT"], start="2024-01-01", end="2025-01-01")
 ```

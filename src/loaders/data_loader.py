@@ -9,7 +9,7 @@ import polars as pl
 from pymongo import ASCENDING, MongoClient
 from pymongo.collection import Collection
 
-from technicalresearch.config import MongoSettings, load_mongo_settings
+from config import MongoSettings, load_mongo_settings
 
 FrameType = Literal["pandas", "polars"]
 
@@ -38,7 +38,8 @@ def load_market_bars(
     `start` is inclusive and `end` is exclusive. Date inputs should use
     `YYYY-MM-DD`; returned rows normalize `time` to the same format.
     """
-    collection = collection or get_collection()
+    if collection is None:
+        collection = get_collection()
     query = _build_query(symbols=symbols, start=start, end=end)
     projection = {
         "_id": 1,
@@ -69,7 +70,8 @@ def load_market_bars(
 
 def list_symbols(collection: Collection | None = None) -> list[str]:
     """Return distinct symbols available in the configured collection."""
-    collection = collection or get_collection()
+    if collection is None:
+        collection = get_collection()
     return sorted(symbol for symbol in collection.distinct("meta.symbol") if symbol)
 
 
