@@ -69,6 +69,33 @@ MONGODB_COLLECTION=market_bars_raw
 
 ## Loading Market Data
 
+Preferred path for new work is the standalone `VietnamMarketDataService` API. This keeps research code independent from the MongoDB document schema.
+
+Run the service:
+
+```powershell
+cd "d:\VS Code Project\VietnamMarketDataService"
+.\.venv\Scripts\Activate.ps1
+uvicorn vn_market_data.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Set this in `.env`:
+
+```text
+VN_MARKET_DATA_API_URL=http://127.0.0.1:8000
+VN_MARKET_DATA_API_KEY=
+```
+
+Use the API loader:
+
+```python
+from loaders.market_data_api import load_market_bars
+
+df = load_market_bars(symbols=["VNM", "FPT"], start="2024-01-01", end="2025-01-01")
+```
+
+The older direct MongoDB loader remains available for local fallback.
+
 The MongoDB loader expects daily bar documents in:
 
 - Database: `vn_market_data`
