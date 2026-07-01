@@ -1,38 +1,38 @@
 # TechnicalResearch
 
-TechnicalResearch is a Python research project for studying statistical relationships between common technical indicators and daily stock returns in the Vietnam equity market.
+TechnicalResearch is a small Python research project for exploring statistical relationships between technical indicators and daily stock returns in the Vietnamese equity market.
 
-## Objective
+The repository currently focuses on reusable data access code and exploratory notebooks. Indicator and return-analysis logic is still early-stage and should be added under `src/` rather than duplicated in notebooks.
 
-The project aims to test whether indicators such as moving averages, momentum, RSI, MACD, volatility, volume-derived measures, and price trend features have measurable relationships with next-day or same-day daily returns for Vietnamese listed equities.
-
-The intended workflow is:
-
-1. Collect and clean Vietnam stock market price and volume data.
-2. Compute technical indicators from historical OHLCV data.
-3. Align indicators with daily forward returns while avoiding look-ahead bias.
-4. Evaluate statistical relationships using correlation, regression, rank tests, factor grouping, and out-of-sample validation.
-5. Summarize results in reproducible tables, charts, and research notes.
-
-## Scope
-
-Initial research should focus on liquid Vietnamese stocks listed on HOSE, HNX, and UPCoM, subject to data availability and quality. The analysis should account for common market-data issues such as missing sessions, corporate actions, survivorship bias, thin trading, and extreme outliers.
-
-## Suggested Project Structure
+## Current Structure
 
 ```text
 TechnicalResearch/
-|-- data/
-|   |-- raw/          # Original market data, not committed
-|   |-- interim/      # Cleaned intermediate datasets, not committed
-|   `-- processed/    # Analysis-ready datasets, not committed
-|-- notebooks/        # Exploratory research notebooks
-|-- src/              # Reusable Python modules
-|-- tests/            # Unit and regression tests
-|-- outputs/          # Generated model outputs, not committed
-|-- reports/          # Generated research reports, not committed
-`-- README.md
+|-- pyproject.toml
+|-- .env.example
+|-- src/
+|   |-- config.py
+|   |-- loaders/
+|   |   |-- data_loader.py
+|   |   `-- market_data_api.py
+|   `-- indicators/
+|       |-- momentum.py
+|       |-- trend.py
+|       |-- volatility.py
+|       `-- volume.py
+`-- scripts/
+    |-- high_liquid.ipynb
+    |-- high_liquid.csv
+    |-- test_loaders.ipynb
+    `-- test_market_data_api_fpt.ipynb
 ```
+
+Notes:
+
+- `src/loaders/` contains read-only market data loading utilities.
+- `src/indicators/` exists as the intended home for reusable indicator logic, but the current indicator modules are placeholders.
+- `scripts/` contains exploratory notebooks and a small CSV output from the high-liquidity workflow.
+- There is no test suite, CLI, report generator, or formal pipeline yet.
 
 ## Environment Setup
 
@@ -43,96 +43,148 @@ py -3 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-Install dependencies:
+Install the project in editable mode:
 
 ```powershell
 python -m pip install -e .
 ```
 
-The initial dependency stack includes:
+Dependencies are managed in `pyproject.toml`. Do not add a separate `requirements.txt` unless the project intentionally changes dependency management.
 
-- `pymongo` for connecting to the existing local MongoDB stock database.
-- `pandas` and `polars` for tabular data preparation and analysis.
-- `pandas-ta-classic` for reusable technical indicator calculations.
-- `scipy` and `statsmodels` for statistical testing and regression diagnostics.
-- `scikit-learn` for modelling and validation workflows.
-- `matplotlib`, `seaborn`, and `plotly` for visualization.
-- `python-dotenv` for local environment configuration.
-
-Copy `.env.example` to `.env` and adjust the MongoDB database name if needed:
+Copy `.env.example` to `.env` and adjust local values:
 
 ```text
 MONGODB_URI=mongodb://localhost:27017
 MONGODB_DATABASE=vn_market_data
 MONGODB_COLLECTION=market_bars_raw
-```
-
-## Loading Market Data
-
-Preferred path for new work is the standalone `VietnamMarketDataService` API. This keeps research code independent from the MongoDB document schema.
-
-Run the service:
-
-```powershell
-cd "d:\VS Code Project\VietnamMarketDataService"
-.\.venv\Scripts\Activate.ps1
-uvicorn vn_market_data.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-Set this in `.env`:
-
-```text
 VN_MARKET_DATA_API_URL=http://127.0.0.1:8000
 VN_MARKET_DATA_API_KEY=
 ```
 
-Use the API loader:
+## Market Data Sources
+
+Two read-only loaders are available.
+
+### API Loader
+
+`loaders.market_data_api` reads from the standalone `VietnamMarketDataService` API. This is the preferred path when the service is running because it keeps research code independent from the MongoDB document schema.
+
+Expected service endpoints:
+
+- `GET /api/v1/bars/daily`
+- `GET /api/v1/symbols`
+
+Example:
 
 ```python
-from loaders.market_data_api import load_market_bars
+from loaders.market_data_api import load_market_bars, list_symbols
 
-df = load_market_bars(symbols=["VNM", "FPT"], start="2024-01-01", end="2025-01-01")
+symbols = list_symbols()
+df = load_market_bars(
+    symbols=["VNM", "FPT"],
+    start="2024-01-01",
+    end="2025-01-01",
+    frame="pandas",
+)
 ```
 
-The older direct MongoDB loader remains available for local fallback.
+Returned columns:
 
-The MongoDB loader expects daily bar documents in:
-
-- Database: `vn_market_data`
-- Collection: `market_bars_raw`
-- Relevant fields: `time`, `meta.symbol`, `open`, `high`, `low`, `close`, `volume`
-- Loader time format: `YYYY-MM-DD`
-
-Preview available symbols:
-
-```powershell
-python scripts/preview_market_data.py --symbols
+```text
+time, symbol, open, high, low, close, volume, source, dataset
 ```
 
-Preview bars for one symbol:
+`frame` may be `"pandas"` or `"polars"`.
 
-```powershell
-python scripts/preview_market_data.py --symbol VNM --start 2024-01-01 --end 2025-01-01
+### Direct MongoDB Loader
+
+`loaders.data_loader` reads directly from MongoDB and normalizes nested documents into flat OHLCV rows.
+
+Expected MongoDB document fields:
+
+```text
+_id
+meta.symbol
+time
+open
+high
+low
+close
+volume
 ```
 
-Use the loader in Python:
+Example:
 
 ```python
-from loaders.data_loader import load_market_bars
+from loaders.data_loader import load_market_bars, list_symbols
 
-df = load_market_bars(symbols=["VNM", "FPT"], start="2024-01-01", end="2025-01-01")
+symbols = list_symbols()
+df = load_market_bars(
+    symbols=["VNM", "FPT"],
+    start="2024-01-01",
+    end="2025-01-01",
+    frame="pandas",
+)
 ```
 
-The query uses `meta.symbol` and `time` filters so it can benefit from the existing indexes. Loader inputs and outputs use `YYYY-MM-DD` date strings for `time`.
+Returned columns:
 
-## Methodological Notes
+```text
+_id, time, symbol, open, high, low, close, volume
+```
 
-- Use adjusted prices where possible to account for dividends, splits, and other corporate actions.
-- Lag technical indicators before comparing them with future returns.
-- Separate exploratory analysis from validation to reduce overfitting.
-- Report transaction-cost sensitivity before treating any relationship as economically meaningful.
-- Compare results across market regimes, liquidity buckets, and listing exchanges.
+Behavior:
 
-## Status
+- `start` is inclusive.
+- `end` is exclusive.
+- `time` is normalized to `YYYY-MM-DD` strings.
+- Results are sorted by `meta.symbol`, then `time`.
+- The query uses `meta.symbol` and `time` filters so existing MongoDB indexes can be used.
+- `frame` may be `"pandas"` or `"polars"`.
 
-This repository is currently in the project setup stage.
+MongoDB access in this project must remain read-only.
+
+## Research Conventions
+
+Sort panel data before any time-series operation:
+
+```python
+df = df.sort_values(["symbol", "time"])
+```
+
+Forward returns should be computed within each symbol independently:
+
+```python
+df["future_return_5"] = (
+    df.groupby("symbol")["close"].shift(-5) / df["close"] - 1
+)
+```
+
+Use features at time `t` only to explain or predict forward returns from `t` to `t+h`. Do not use centered rolling windows, future-filled values, future-shifted indicators, or cross-symbol operations that leak information.
+
+## Notebooks
+
+Current notebooks live in `scripts/`:
+
+- `test_loaders.ipynb`: exploratory checks for the direct MongoDB loader.
+- `test_market_data_api_fpt.ipynb`: exploratory checks for the API loader using FPT data.
+- `high_liquid.ipynb`: liquidity-focused exploratory workflow.
+
+Reusable logic discovered in notebooks should be moved into `src/`. Notebooks should stay focused on exploration.
+
+## Current Status
+
+Implemented:
+
+- Environment-based MongoDB configuration in `src/config.py`.
+- Direct MongoDB OHLCV loader with pandas/polars output.
+- API OHLCV loader with pandas/polars output.
+- Exploratory notebooks for loader checks and liquidity analysis.
+
+Not implemented yet:
+
+- Reusable technical indicator functions.
+- Reusable forward-return construction helpers.
+- Feature/label alignment utilities.
+- Formal statistical analysis pipeline.
+- Automated tests.
