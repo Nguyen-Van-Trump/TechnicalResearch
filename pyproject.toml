@@ -37,6 +37,7 @@ dependencies = [
     "statsmodels==0.14.6",
     "threadpoolctl==3.6.0",
     "tzdata==2026.2",
+    "vectorbt[full]==1.1.0",
 ]
 
 [tool.setuptools.packages.find]
