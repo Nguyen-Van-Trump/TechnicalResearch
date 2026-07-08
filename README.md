@@ -2,7 +2,7 @@
 
 TechnicalResearch is a small Python research project for exploring statistical relationships between technical indicators and daily stock returns in the Vietnamese equity market.
 
-The repository currently focuses on reusable data access code and exploratory notebooks. Indicator and return-analysis logic is still early-stage and should be added under `src/` rather than duplicated in notebooks.
+The repository currently focuses on reusable MongoDB data access code and exploratory notebooks. Indicator and return-analysis logic is still early-stage and should be added under `src/` rather than duplicated in notebooks.
 
 ## Current Structure
 
@@ -29,7 +29,7 @@ TechnicalResearch/
 
 Notes:
 
-- `src/loaders/` contains read-only market data loading utilities.
+- `src/loaders/` contains read-only market data loading utilities. The active workflow loads daily bars directly from MongoDB.
 - `src/indicators/` exists as the intended home for reusable indicator logic, but the current indicator modules are placeholders.
 - `scripts/` contains exploratory notebooks and a small CSV output from the high-liquidity workflow.
 - There is no test suite, CLI, report generator, or formal pipeline yet.
@@ -57,48 +57,11 @@ Copy `.env.example` to `.env` and adjust local values:
 MONGODB_URI=mongodb://localhost:27017
 MONGODB_DATABASE=vn_market_data
 MONGODB_COLLECTION=market_bars_raw
-VN_MARKET_DATA_API_URL=http://127.0.0.1:8000
-VN_MARKET_DATA_API_KEY=
 ```
 
 ## Market Data Sources
 
-Two read-only loaders are available.
-
-### API Loader
-
-`loaders.market_data_api` reads from the standalone `VietnamMarketDataService` API. This is the preferred path when the service is running because it keeps research code independent from the MongoDB document schema.
-
-Expected service endpoints:
-
-- `GET /api/v1/bars/daily`
-- `GET /api/v1/symbols`
-
-Example:
-
-```python
-from loaders.market_data_api import load_market_bars, list_symbols
-
-symbols = list_symbols()
-df = load_market_bars(
-    symbols=["VNM", "FPT"],
-    start="2024-01-01",
-    end="2025-01-01",
-    frame="pandas",
-)
-```
-
-Returned columns:
-
-```text
-time, symbol, open, high, low, close, volume, source, dataset
-```
-
-`frame` may be `"pandas"` or `"polars"`.
-
-### Direct MongoDB Loader
-
-`loaders.data_loader` reads directly from MongoDB and normalizes nested documents into flat OHLCV rows.
+The current workflow reads daily OHLCV bars directly from MongoDB through `loaders.data_loader`. The loader is read-only and normalizes nested MongoDB documents into flat rows for pandas or polars.
 
 Expected MongoDB document fields:
 
@@ -144,6 +107,8 @@ Behavior:
 
 MongoDB access in this project must remain read-only.
 
+`loaders.market_data_api` still exists in the repository, but it is no longer the primary documented data path. New research code should call MongoDB directly unless the project intentionally reintroduces the API layer.
+
 ## Research Conventions
 
 Sort panel data before any time-series operation:
@@ -167,7 +132,7 @@ Use features at time `t` only to explain or predict forward returns from `t` to 
 Current notebooks live in `scripts/`:
 
 - `test_loaders.ipynb`: exploratory checks for the direct MongoDB loader.
-- `test_market_data_api_fpt.ipynb`: exploratory checks for the API loader using FPT data.
+- `test_market_data_api_fpt.ipynb`: older exploratory checks for the API loader using FPT data.
 - `high_liquid.ipynb`: liquidity-focused exploratory workflow.
 
 Reusable logic discovered in notebooks should be moved into `src/`. Notebooks should stay focused on exploration.
@@ -178,7 +143,6 @@ Implemented:
 
 - Environment-based MongoDB configuration in `src/config.py`.
 - Direct MongoDB OHLCV loader with pandas/polars output.
-- API OHLCV loader with pandas/polars output.
 - Exploratory notebooks for loader checks and liquidity analysis.
 
 Not implemented yet:

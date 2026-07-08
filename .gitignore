@@ -25,6 +25,7 @@ htmlcov/
 
 # Notebooks
 .ipynb_checkpoints/
+notebooks/
 
 # Environment and local config
 .env
