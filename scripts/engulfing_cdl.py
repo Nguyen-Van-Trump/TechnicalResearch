@@ -15,13 +15,13 @@ if str(SRC_ROOT) not in sys.path:
 from loaders.user_api import load_symbols
 
 START_DATE = "2023-01-01"
-END_DATE = "2024-01-01"
+END_DATE = None
 SYMBOL = "FPT"
 EMA_FAST_LENGTH = 20
 RISK_REWARD_RATIO = 1.5
 
 
-def prepare_engulfing_data(symbol: str, start: str, end: str) -> pd.DataFrame:
+def prepare_engulfing_data(symbol: str, start: str | None, end: str | None) -> pd.DataFrame:
     df = (
         load_symbols(symbol, start, end)
         .drop(columns="symbol")
@@ -86,7 +86,7 @@ def plot_engulfing_chart(df: pd.DataFrame, symbol: str) -> None:
         ylabel_lower="Volume",
         figratio=(16, 9),
         figscale=1.2,
-        warn_too_much_data=2000,
+        warn_too_much_data=5000,
     )
 
 
@@ -106,9 +106,10 @@ def backtest_engulfing_strategy(
 
     sl_stop = stop_distance.where(entries)
     tp_stop = (stop_distance * risk_reward_ratio).where(entries)
+    benchmark_close = df["close"].rename("Buy and hold")
 
     portfolio = vbt.Portfolio.from_signals(
-        close=df["close"],
+        close=benchmark_close,
         entries=entries,
         exits=exits,
         price=df["close"],
@@ -141,6 +142,8 @@ def plot_backtest_mpf(
     *,
     risk_reward_ratio: float = RISK_REWARD_RATIO,
 ) -> None:
+    # Loop through every trade, get entry and exit dates.
+    # For SL (low price of entry date), set value of pd.Series from 
     trades = portfolio.trades.records_readable
     closed_trades = trades.loc[trades["Status"] == "Closed"]
     entry_price = pd.Series(index=df.index, dtype="float64")
@@ -148,33 +151,27 @@ def plot_backtest_mpf(
 
     stop_loss_level = pd.Series(index=df.index, dtype="float64")
     take_profit_level = pd.Series(index=df.index, dtype="float64")
+    # Loop through every trade
     for _, trade in closed_trades.iterrows():
         entry_time = pd.Timestamp(trade["Entry Timestamp"])
         exit_time = pd.Timestamp(trade["Exit Timestamp"])
         if entry_time not in df.index or exit_time not in df.index:
             continue
 
-        entry_matches = (df.index == entry_time).nonzero()[0]
-        exit_matches = (df.index == exit_time).nonzero()[0]
-        if len(entry_matches) == 0 or len(exit_matches) == 0:
-            continue
+        entry_price.loc[entry_time] = trade["Avg Entry Price"] # pyright: ignore[reportArgumentType, reportCallIssue]
+        exit_price.loc[exit_time] = trade["Avg Exit Price"] # pyright: ignore[reportArgumentType, reportCallIssue]
 
-        entry_pos = entry_matches[0]
-        exit_pos = exit_matches[-1]
-        entry_price.iloc[entry_pos] = trade["Avg Entry Price"]
-
-        stop_price = df["low"].iloc[entry_pos]
-        entry_close = df["close"].iloc[entry_pos]
-        target_price = entry_close + (entry_close - stop_price) * risk_reward_ratio
-        stop_loss_level.iloc[entry_pos : exit_pos + 1] = stop_price
-        take_profit_level.iloc[entry_pos : exit_pos + 1] = target_price
-
-        if exit_time in exit_price.index:
-            exit_price.iloc[exit_pos] = trade["Avg Exit Price"]
+        stop_price = df.loc[entry_time, "low"]
+        entry_close = df.loc[entry_time, "close"]
+        target_price = entry_close + (entry_close - stop_price) * risk_reward_ratio # pyright: ignore[reportOperatorIssue]
+        stop_loss_level.loc[entry_time:exit_time] = stop_price
+        take_profit_level.loc[entry_time:exit_time] = target_price
 
     value = portfolio.value()
-    pnl = value - value.iloc[0]
-    drawdown = portfolio.drawdown() * 100
+    pnl = (value / value.iloc[0] - 1) * 100
+    benchmark_value = portfolio.benchmark_value()
+    benchmark_pnl = (benchmark_value / benchmark_value.iloc[0] - 1) * 100
+    drawdown = portfolio.drawdown() * 100 # pyright: ignore[reportAttributeAccessIssue]
 
     add_plots = [
         mpf.make_addplot(df["EMA_fast"], panel=0, color="#1f77b4", width=1.2, label=f"EMA {EMA_FAST_LENGTH}"),
@@ -196,6 +193,7 @@ def plot_backtest_mpf(
             color="#9467bd",
             label="Exit",
         ),
+        # SL and TP
         mpf.make_addplot(stop_loss_level, panel=0, color="#d62728", width=1.0, linestyle="--", label="Stop loss"),
         mpf.make_addplot(
             take_profit_level,
@@ -205,11 +203,30 @@ def plot_backtest_mpf(
             linestyle="--",
             label=f"Take profit {risk_reward_ratio:.1f}R",
         ),
-        mpf.make_addplot(pnl, panel=1, color="#2ca02c", width=1.2, ylabel="PnL"),
+        # PnL %
+        mpf.make_addplot(
+            pnl,
+            panel=1,
+            color="#2ca02c",
+            width=1.2,
+            ylabel="PnL %",
+            label="Strategy PnL",
+            secondary_y=False,
+        ),
+        mpf.make_addplot(
+            benchmark_pnl,
+            panel=1,
+            color="#1f77b4",
+            width=1.2,
+            linestyle="--",
+            label="Buy and hold",
+            secondary_y=False,
+        ),
+        # Drawdown
         mpf.make_addplot(drawdown, panel=2, color="#d62728", width=1.2, ylabel="Drawdown %"),
     ]
 
-    mpf.plot(
+    fig, axes = mpf.plot(
         df,
         type="candle",
         style="yahoo",
@@ -221,7 +238,13 @@ def plot_backtest_mpf(
         figscale=1.2,
         volume=False,
         warn_too_much_data=2000,
+        returnfig=True,
     )
+    for ax in axes:
+        handles, labels = ax.get_legend_handles_labels()
+        if handles:
+            ax.legend(handles, labels, loc="best")
+    mpf.show()
 
 
 def main() -> None:
